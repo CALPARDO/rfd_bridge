@@ -1,0 +1,63 @@
+bridge_id: robot
+
+serial:
+  port: /dev/ttyTHS1
+  baud: 460800
+  rtscts: true
+  reconnect: true
+
+link:
+  # Bits per second on the wire, deliberately below one measured link's limit.
+  bandwidth_limit_bps: 80000
+  mtu_payload: 256
+  max_message_size: 2000000
+  max_queue_bytes: 4000000
+  refuse_on_config_mismatch: true
+
+topics:
+  cmd_vel:
+    id: 1
+    ros_topic: /cmd_vel
+    remote_topic: /cmd_vel
+    type: geometry_msgs/msg/Twist
+    direction: rx
+    priority: 0
+    reliability: latest
+    max_rate_hz: 20
+    queue_depth: 1
+
+  odometry:
+    id: 2
+    ros_topic: /odom
+    remote_topic: /odom
+    type: nav_msgs/msg/Odometry
+    direction: tx
+    priority: 2
+    reliability: latest
+    max_rate_hz: 20
+    queue_depth: 1
+
+  status:
+    id: 3
+    ros_topic: /vehicle/status
+    remote_topic: /vehicle/status_remote
+    type: diagnostic_msgs/msg/DiagnosticArray
+    direction: bidirectional
+    priority: 3
+    reliability: best_effort
+    max_rate_hz: 2
+    queue_depth: 2
+
+  camera:
+    id: 10
+    ros_topic: /camera/image/compressed
+    remote_topic: /camera/image/compressed
+    type: sensor_msgs/msg/CompressedImage
+    direction: tx
+    priority: 10
+    reliability: latest
+    drop_policy: latest
+    queue_depth: 1
+    max_rate_hz: 0.2
+    replace_started_below: 0.2
+    qos: sensor_data

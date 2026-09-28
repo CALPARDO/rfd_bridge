@@ -1,0 +1,19 @@
+bridge_id: loopback_test
+serial:
+  port: /dev/ttyUSB0
+  baud: 460800
+  rtscts: true
+link:
+  bandwidth_limit_bps: 80000
+  mtu_payload: 256
+topics:
+  text:
+    id: 1
+    ros_topic: /rfd_test/input
+    remote_topic: /rfd_test/output
+    type: std_msgs/msg/String
+    direction: bidirectional
+    priority: 1
+    reliability: reliable
+    queue_depth: 5
+    drop_policy: never-drop
