@@ -36,7 +36,8 @@ An empty serialized message is represented by one zero-length fragment.
 Fragments may arrive out of order. Duplicate fragments are ignored. A message
 is delivered only after every index has arrived; incomplete assemblies expire.
 Completed message IDs are remembered briefly so a retransmission cannot cause a
-second ROS publication.
+second ROS publication. Each sender starts its 32-bit counter at a random
+nonzero ID to reduce collisions with that cache after a process restart.
 
 ## Stream recovery and malformed data
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 import hashlib
+import secrets
 import threading
 import time
 from typing import Callable, Dict, Optional
@@ -41,7 +42,8 @@ class BridgeEngine:
         self._lock = threading.RLock()
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
-        self._next_message_id = 1
+        # A restarted sender may meet a receiver that still remembers recent IDs.
+        self._next_message_id = 1 + secrets.randbelow(0xffffffff)
         self._serial_connected = False
         self.remote_seen_at = 0.0
         self.remote_config_hash: Optional[bytes] = None

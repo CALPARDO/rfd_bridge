@@ -60,3 +60,20 @@ def test_mismatched_map_blocks_user_data():
     finally:
         a.close()
         b.close()
+
+
+def test_peer_restart_does_not_drop_first_fresh_message(monkeypatch):
+    from rfd_bridge.protocol import fragment_message
+    starts = iter((1234, 9000, 19000))
+    monkeypatch.setattr('secrets.randbelow', lambda limit: next(starts))
+    received = []
+    receiver = BridgeEngine(config('b', 'rx'), MemoryTransport(),
+                            lambda _, data: received.append(data))
+    receiver.config_match = True
+    for payload in (b'first', b'after restart'):
+        sender = BridgeEngine(config('a', 'tx'), MemoryTransport(),
+                              lambda *_: None)
+        frame, = fragment_message(1, sender._new_id(), payload, 256, True)
+        receiver.receive_bytes(frame.pack())
+        receiver.receive_bytes(frame.pack())
+    assert received == [b'first', b'after restart']
