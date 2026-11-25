@@ -77,3 +77,62 @@ def test_peer_restart_does_not_drop_first_fresh_message(monkeypatch):
         receiver.receive_bytes(frame.pack())
         receiver.receive_bytes(frame.pack())
     assert received == [b'first', b'after restart']
+
+
+def test_write_fault_does_not_close_port_during_read(monkeypatch):
+    import threading
+
+    import serial
+    from rfd_bridge.transport import SerialTransport
+
+    reading, failed_write = threading.Event(), threading.Event()
+    closed_while_reading = []
+
+    class Port:
+        is_open = True
+        in_waiting = 0
+
+        def read(self, size):
+            reading.set()
+            failed_write.wait(1)
+            time.sleep(0.03)
+            reading.clear()
+            return b''
+
+        def write(self, data):
+            failed_write.set()
+            raise serial.SerialException('injected write fault')
+
+        def close(self):
+            closed_while_reading.append(reading.is_set())
+            self.is_open = False
+
+    ports = iter([Port()])
+
+    def open_port(**kwargs):
+        try:
+            return next(ports)
+        except StopIteration:
+            raise serial.SerialException('device unplugged')
+
+    monkeypatch.setattr(serial, 'Serial', open_port)
+    transport = SerialTransport(SerialConfig('bench', rtscts=False, reconnect=False))
+    transport.start(lambda data: None, lambda connected, detail: None)
+    try:
+        assert reading.wait(1)
+        assert not transport.write(b'probe')
+        assert closed_while_reading == [False]
+    finally:
+        transport.close()
+
+
+def test_reopened_serial_requires_new_peer_hello():
+    engine = BridgeEngine(config('bench', 'rx'), MemoryTransport(), lambda *_: None)
+    engine._transport_state(True, 'opened')
+    engine.config_match = True
+    engine.remote_seen_at = time.monotonic()
+    assert engine.link_state == 'CONNECTED' and engine.user_data_allowed
+    engine._transport_state(False, 'removed')
+    engine._transport_state(True, 'reopened')
+    assert engine.link_state == 'CONNECTING'
+    assert not engine.user_data_allowed

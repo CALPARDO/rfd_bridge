@@ -32,6 +32,7 @@ class SerialTransport(Transport):
         self.config = config
         self._serial: Optional[serial.Serial] = None
         self._lock = threading.RLock()
+        self._read_lock = threading.Lock()
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
         self._receive = lambda data: None
@@ -64,18 +65,22 @@ class SerialTransport(Transport):
             exclusive=True)
         with self._lock:
             self._serial = port
-        self.reconnects += 1
-        self._state(True, self.config.port)
+            self.reconnects += 1
+            self._state(True, self.config.port)
 
-    def _disconnect(self, detail: str) -> None:
+    def _disconnect(self, detail: str, expected=None) -> None:
         with self._lock:
-            port, self._serial = self._serial, None
-        if port is not None:
+            port = self._serial
+            if port is None or (expected is not None and port is not expected):
+                return
+            self._serial = None
+            self._state(False, detail)
+        # A failed write must not invalidate a descriptor inside pyserial.read.
+        with self._read_lock:
             try:
                 port.close()
             except serial.SerialException:
                 pass
-        self._state(False, detail)
 
     def _run(self) -> None:
         while not self._stop.is_set():
@@ -89,16 +94,17 @@ class SerialTransport(Transport):
                     self._stop.wait(self.config.reconnect_interval_sec)
                     continue
             try:
-                with self._lock:
-                    port = self._serial
-                if port is None:
-                    continue
-                data = port.read(max(1, min(4096, port.in_waiting or 1)))
+                with self._read_lock:
+                    with self._lock:
+                        port = self._serial
+                    if port is None:
+                        continue
+                    data = port.read(max(1, min(4096, port.in_waiting or 1)))
                 if data:
                     self.bytes_read += len(data)
                     self._receive(data)
             except (serial.SerialException, OSError) as exc:
-                self._disconnect(str(exc))
+                self._disconnect(str(exc), expected=port)
         self._disconnect('closed')
 
     def write(self, data: bytes) -> bool:
@@ -121,7 +127,7 @@ class SerialTransport(Transport):
                 self.bytes_written += offset
                 return True
         except (serial.SerialException, serial.SerialTimeoutException, OSError) as exc:
-            self._disconnect(str(exc))
+            self._disconnect(str(exc), expected=port)
             return False
 
     def close(self) -> None:

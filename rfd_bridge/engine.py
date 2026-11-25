@@ -106,6 +106,10 @@ class BridgeEngine:
     def _transport_state(self, connected: bool, detail: str) -> None:
         changed = connected != self._serial_connected
         self._serial_connected = connected
+        if changed and not connected:
+            self.config_match = None
+            self.remote_seen_at = 0.0
+            self.last_hello = 0.0
         if changed:
             self.log('info' if connected else 'warn',
                      f'serial {"connected" if connected else "disconnected"}: {detail}')
